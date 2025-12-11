@@ -1,5 +1,6 @@
-% --- HEART PATIENT KNOWLEDGE BASE ---
-% Format: patient(Id, Age, Sex, CP, Trestbps, Chol, FBS, RestECG, Thalach, Exang, Oldpeak, Slope, CA, Thal, ActualOutcome).
+% --- HEART DISEASE KNOWLEDGE BASE ---
+% Format: patient(ID, Age, Sex, CP, Trestbps, Chol, FBS, RestECG, Thalach, Exang, Oldpeak, Slope, CA, Thal, Target).
+% NOTE: In this dataset, Target 0 = Disease, Target 1 = Healthy.
 
 patient(p0, 52, 1, 0, 125, 212, 0, 1, 168, 0, 1.0, 2, 2, 3, 0).
 patient(p1, 53, 1, 0, 140, 203, 1, 0, 155, 1, 3.1, 0, 0, 3, 0).

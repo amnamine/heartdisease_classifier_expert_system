@@ -1,73 +1,52 @@
-% 1. Load the data
 :- consult('heart_data.pl').
 
-% --- CARDIOLOGY RULES (The Expert Knowledge) ---
+% --- MEDICAL EVIDENCE RULES ---
 
-% Rule 1: High Cholesterol
-% Medical standard: > 240 mg/dl is high.
-high_cholesterol(ID) :-
-    patient(ID, _, _, _, _, Chol, _, _, _, _, _, _, _, _, _),
-    Chol > 240.
+% Rule: Chest Pain Type 0 (Typical Angina) is the strongest predictor of disease in this dataset.
+indicator(angina) :- 
+    patient(ID, _, _, 0, _, _, _, _, _, _, _, _, _, _, _).
 
-% Rule 2: High Blood Pressure (Hypertension)
-% Medical standard: Resting BP > 140 is Stage 2 Hypertension.
-high_bp(ID) :-
-    patient(ID, _, _, Trestbps, _, _, _, _, _, _, _, _, _, _, _),
-    Trestbps > 140.
+% Rule: Thallium Stress Test (Thal=3 is Reversable Defect => Sick)
+indicator(thal_defect, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, _, _, _, _, 3, _).
 
-% Rule 3: Exercise Induced Angina
-% If exercise causes chest pain, this is a strong indicator.
-has_exang(ID) :-
-    patient(ID, _, _, _, _, _, _, _, _, Exang, _, _, _, _, _),
-    Exang = 1.
-
-% Rule 4: Significant ST Depression
-% Oldpeak > 2.0 usually indicates ischemia.
-bad_oldpeak(ID) :-
-    patient(ID, _, _, _, _, _, _, _, _, _, Oldpeak, _, _, _, _),
-    Oldpeak > 2.0.
-
-% Rule 5: Major Vessels Colored (Fluoroscopy)
-% If CA > 0, there is blockage.
-blocked_vessels(ID) :-
+% Rule: Fluoroscopy showing Blocked Major Vessels (CA > 0)
+indicator(blocked_vessels, ID) :-
     patient(ID, _, _, _, _, _, _, _, _, _, _, _, CA, _, _),
     CA > 0.
 
-% --- DIAGNOSTIC ENGINE (Inference) ---
+% Rule: Exercise Induced Angina (Exang=1)
+indicator(exercise_pain, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, 1, _, _, _, _, _).
 
-% Diagnosis 1: Critical Indicators
-% IF Blocked Vessels detected OR Significant ST Depression -> SICK.
+% Rule: ST Depression (Oldpeak) indicates heart stress
+indicator(high_oldpeak, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, _, Oldpeak, _, _, _, _),
+    Oldpeak > 1.5.
+
+% --- DIAGNOSTIC ENGINE ---
+
+% Diagnosis 1: The "Smoking Gun" (Blocked Vessels + Stress)
 diagnose(ID, heart_disease) :-
-    blocked_vessels(ID).
+    indicator(blocked_vessels, ID),
+    indicator(high_oldpeak, ID).
 
+% Diagnosis 2: Thallium Defect + Angina
 diagnose(ID, heart_disease) :-
-    bad_oldpeak(ID).
+    indicator(thal_defect, ID),
+    indicator(exercise_pain, ID).
 
-% Diagnosis 2: The "Risk Factor" Combination
-% IF (High Cholesterol OR High BP) AND Exercise Angina -> SICK.
+% Diagnosis 3: Typical Angina Pectoris (CP=0)
+% This specific type of pain is highly correlated with disease here.
 diagnose(ID, heart_disease) :-
-    (high_cholesterol(ID) ; high_bp(ID)), % ; means OR
-    has_exang(ID).
+    patient(ID, _, _, 0, _, _, _, _, _, _, _, _, _, _, _).
 
-% Diagnosis 3: Age Factor
-% IF Age > 60 AND High BP -> SICK (Higher risk for elderly).
+% Diagnosis 4: "Silent" Progression
+% No pain (Exang=0), but multiple blocked vessels
 diagnose(ID, heart_disease) :-
-    patient(ID, Age, _, _, _, _, _, _, _, _, _, _, _, _, _),
-    Age > 60,
-    high_bp(ID).
+    indicator(blocked_vessels, ID),
+    patient(ID, _, _, _, _, _, _, _, _, 0, _, _, _, _, _).
 
-% Default: If no rules match, assume Healthy.
+% DEFAULT: If no severe rules match, the patient is healthy.
 diagnose(ID, healthy) :-
     \+ diagnose(ID, heart_disease).
-
-% --- VALIDATION HELPERS ---
-
-% Check if our diagnosis matches the Ground Truth (Target column)
-% Note: In this dataset, Target=1 is Disease, Target=0 is Healthy.
-is_correct(ID) :-
-    diagnose(ID, heart_disease),
-    patient(ID, _, _, _, _, _, _, _, _, _, _, _, _, _, 1).
-
-is_correct(ID) :-
-    diagnose(ID, healthy),
-    patient(ID, _, _, _, _, _, _, _, _, _, _, _, _, _, 0).
