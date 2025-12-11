@@ -1,52 +1,75 @@
 :- consult('heart_data.pl').
 
-% --- MEDICAL EVIDENCE RULES ---
+% --- MEDICAL EVIDENCE INDICATORS ---
 
-% Rule: Chest Pain Type 0 (Typical Angina) is the strongest predictor of disease in this dataset.
-indicator(angina) :- 
+% Indicator: Significant Chest Pain (Type 0 = Typical Angina)
+indicator(typical_angina, ID) :- 
     patient(ID, _, _, 0, _, _, _, _, _, _, _, _, _, _, _).
 
-% Rule: Thallium Stress Test (Thal=3 is Reversable Defect => Sick)
+% Indicator: Thallium Stress Test (Thal=3 is Reversable Defect, Thal=2 is Normal)
 indicator(thal_defect, ID) :-
     patient(ID, _, _, _, _, _, _, _, _, _, _, _, _, 3, _).
 
-% Rule: Fluoroscopy showing Blocked Major Vessels (CA > 0)
+indicator(thal_normal, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, _, _, _, _, 2, _).
+
+% Indicator: Fluoroscopy (CA = Number of major vessels colored by flourosopy)
+% CA > 0 suggests blockage.
 indicator(blocked_vessels, ID) :-
     patient(ID, _, _, _, _, _, _, _, _, _, _, _, CA, _, _),
     CA > 0.
 
-% Rule: Exercise Induced Angina (Exang=1)
+indicator(clear_vessels, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, _, _, _, 0, _, _).
+
+% Indicator: Exercise Induced Angina (1 = Yes, 0 = No)
 indicator(exercise_pain, ID) :-
     patient(ID, _, _, _, _, _, _, _, _, 1, _, _, _, _, _).
 
-% Rule: ST Depression (Oldpeak) indicates heart stress
+indicator(no_exercise_pain, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, 0, _, _, _, _, _).
+
+% Indicator: ST Depression (Oldpeak)
+% > 2.0 is a strong sign of pathology. < 1.0 is generally safe.
 indicator(high_oldpeak, ID) :-
     patient(ID, _, _, _, _, _, _, _, _, _, Oldpeak, _, _, _, _),
-    Oldpeak > 1.5.
+    Oldpeak > 2.0.
 
-% --- DIAGNOSTIC ENGINE ---
+indicator(low_oldpeak, ID) :-
+    patient(ID, _, _, _, _, _, _, _, _, _, Oldpeak, _, _, _, _),
+    Oldpeak < 1.0.
 
-% Diagnosis 1: The "Smoking Gun" (Blocked Vessels + Stress)
+% --- DIAGNOSTIC ENGINE (RULES) ---
+
+% RULE 1: High Severity (Blocked Vessels + Stress Defect)
+% Strongest predictor: Physical blockage visible + Thallium defect.
+diagnose(ID, heart_disease) :-
+    indicator(blocked_vessels, ID),
+    indicator(thal_defect, ID).
+
+% RULE 2: The "Silent" Ischemia Rule (Blocked Vessels + High ST Depression)
+% Even if they don't complain of pain, the biology shows stress.
 diagnose(ID, heart_disease) :-
     indicator(blocked_vessels, ID),
     indicator(high_oldpeak, ID).
 
-% Diagnosis 2: Thallium Defect + Angina
+% RULE 3: Angina with Supporting Evidence
+% Chest pain alone isn't enough. But Pain + Exercise Pain + Blockage is.
 diagnose(ID, heart_disease) :-
-    indicator(thal_defect, ID),
-    indicator(exercise_pain, ID).
+    indicator(typical_angina, ID),
+    indicator(exercise_pain, ID),
+    indicator(blocked_vessels, ID).
 
-% Diagnosis 3: Typical Angina Pectoris (CP=0)
-% This specific type of pain is highly correlated with disease here.
-diagnose(ID, heart_disease) :-
-    patient(ID, _, _, 0, _, _, _, _, _, _, _, _, _, _, _).
+% RULE 4: Explicit Healthy Rule
+% If vessels are clear, Thal is normal, and ST depression is low -> Healthy.
+% We prioritize this definition of health.
+diagnose(ID, healthy) :-
+    indicator(clear_vessels, ID),
+    indicator(thal_normal, ID),
+    indicator(low_oldpeak, ID).
 
-% Diagnosis 4: "Silent" Progression
-% No pain (Exang=0), but multiple blocked vessels
-diagnose(ID, heart_disease) :-
-    indicator(blocked_vessels, ID),
-    patient(ID, _, _, _, _, _, _, _, _, 0, _, _, _, _, _).
-
-% DEFAULT: If no severe rules match, the patient is healthy.
+% DEFAULT FALLBACK
+% If strict disease rules don't match, and strict healthy rules don't match,
+% we use the "negation as failure" fallback based on risk factors.
 diagnose(ID, healthy) :-
     \+ diagnose(ID, heart_disease).
